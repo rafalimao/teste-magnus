@@ -1,26 +1,33 @@
 <?php
 
 require_once 'models/Vehicle.php';
-require_once 'services/FipeService.php';
+require_once 'interfaces/VehicleDataProviderInterface.php';
 
 class VehicleController {
     private $db;
     private $redis;
     private $vehicle;
-    private $fipeService;
+    private $vehicleDataProvider;
 
-    public function __construct() {
+    public function __construct(VehicleDataProviderInterface $vehicleDataProvider = null) {
         $database = new Database();
         $this->db = $database->getConnection();
         $this->redis = new RedisConfig();
         $this->vehicle = new Vehicle($this->db);
-        $this->fipeService = new FipeService();
+        
+        // Injeção de dependência - se não fornecido, usa FipeService como padrão
+        if ($vehicleDataProvider === null) {
+            require_once 'services/FipeService.php';
+            $this->vehicleDataProvider = new FipeService();
+        } else {
+            $this->vehicleDataProvider = $vehicleDataProvider;
+        }
     }
 
     public function loadInitialData() {
         try {
-            // Buscar marcas na API FIPE
-            $brands = $this->fipeService->getBrands();
+            // Buscar marcas usando a interface
+            $brands = $this->vehicleDataProvider->getBrands();
             
             if (empty($brands)) {
                 http_response_code(400);
@@ -137,5 +144,11 @@ class VehicleController {
         // Por simplicidade, vamos limpar alguns caches conhecidos
         $this->redis->delete('brands_list');
     }
-}
 
+    /**
+     * Método para definir o provedor de dados (útil para testes)
+     */
+    public function setVehicleDataProvider(VehicleDataProviderInterface $provider) {
+        $this->vehicleDataProvider = $provider;
+    }
+}

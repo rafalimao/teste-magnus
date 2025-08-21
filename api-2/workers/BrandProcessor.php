@@ -3,20 +3,27 @@
 require_once 'config/Database.php';
 require_once 'config/Redis.php';
 require_once 'models/Vehicle.php';
-require_once 'services/FipeService.php';
+require_once 'interfaces/VehicleDataProviderInterface.php';
 
 class BrandProcessor {
     private $db;
     private $redis;
     private $vehicle;
-    private $fipeService;
+    private $vehicleDataProvider;
 
-    public function __construct() {
+    public function __construct(VehicleDataProviderInterface $vehicleDataProvider = null) {
         $database = new Database();
         $this->db = $database->getConnection();
         $this->redis = new RedisConfig();
         $this->vehicle = new Vehicle($this->db);
-        $this->fipeService = new FipeService();
+        
+        // Injeção de dependência - se não fornecido, usa FipeService como padrão
+        if ($vehicleDataProvider === null) {
+            require_once 'services/FipeService.php';
+            $this->vehicleDataProvider = new FipeService();
+        } else {
+            $this->vehicleDataProvider = $vehicleDataProvider;
+        }
     }
 
     public function processBrands() {
@@ -35,8 +42,8 @@ class BrandProcessor {
 
                 echo "Processing brand: " . $brand['nome'] . " (Code: " . $brand['codigo'] . ")\n";
                 
-                // Buscar modelos da marca na API FIPE
-                $models = $this->fipeService->getModels('carros', $brand['codigo']);
+                // Buscar modelos da marca usando a interface
+                $models = $this->vehicleDataProvider->getModels('carros', $brand['codigo']);
                 
                 if (empty($models)) {
                     echo "No models found for brand: " . $brand['nome'] . "\n";
@@ -73,6 +80,13 @@ class BrandProcessor {
             }
         }
     }
+
+    /**
+     * Método para definir o provedor de dados (útil para testes)
+     */
+    public function setVehicleDataProvider(VehicleDataProviderInterface $provider) {
+        $this->vehicleDataProvider = $provider;
+    }
 }
 
 // Executar o processador se chamado diretamente
@@ -80,4 +94,3 @@ if (php_sapi_name() === 'cli') {
     $processor = new BrandProcessor();
     $processor->processBrands();
 }
-
